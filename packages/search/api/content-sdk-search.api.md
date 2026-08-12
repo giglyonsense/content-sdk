@@ -44,6 +44,12 @@ export interface FacetValue {
 }
 
 // @public
+export interface QuerySuggestion {
+    queryPlusText: string;
+    text: string;
+}
+
+// @public
 export type SearchDocument = {
     [key: string]: PrimitiveType | PrimitiveType[] | SearchDocument | SearchDocument[];
 };
@@ -70,6 +76,7 @@ export interface SearchResponse<T extends SearchDocument = SearchDocument> {
 export class SearchService {
     constructor(config: SearchServiceConfig);
     search<T extends SearchDocument = SearchDocument>(params: SearchParameters<T>, fetchOptions?: SearchServiceFetchOptions): Promise<SearchResponse<T>>;
+    suggest<T extends SearchDocument = SearchDocument>(params: SuggestParameters, fetchOptions?: SearchServiceFetchOptions): Promise<SuggestResponse<T>>;
 }
 
 // @public
@@ -86,6 +93,19 @@ export type SortSetting<T extends SearchDocument = SearchDocument> = {
     name: PathsToStringProps<T>;
     order: 'asc' | 'desc';
 };
+
+// @public
+export interface SuggestParameters {
+    keyphrase: string;
+    locale?: string;
+    searchIndexId: string;
+}
+
+// @public
+export interface SuggestResponse<T extends SearchDocument = SearchDocument> {
+    previewResults: T[];
+    querySuggestions: QuerySuggestion[];
+}
 
 // Warnings were encountered during analysis:
 //

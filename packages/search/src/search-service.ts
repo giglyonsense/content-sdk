@@ -108,6 +108,59 @@ export interface SearchParameters<T extends SearchDocument = SearchDocument> {
 }
 
 /**
+ * A set of request parameters for the Suggest API of the Search Service.
+ * @public
+ */
+export interface SuggestParameters {
+  /**
+   * The ID of the search index to use.
+   */
+  searchIndexId: string;
+  /**
+   * Partial text to get suggestions for. Maximum length 100 characters.
+   */
+  keyphrase: string;
+  /**
+   * The locale to use for the suggestions. Required for multi-locale index configurations.
+   * Format: letters and hyphens only (e.g. 'en', 'fr-FR', 'el-GR').
+   * Omit for single-locale indexes.
+   */
+  locale?: string;
+}
+
+/**
+ * A single autocomplete suggestion for the requested keyphrase.
+ * @public
+ */
+export interface QuerySuggestion {
+  /**
+   * The completed term.
+   */
+  text: string;
+  /**
+   * The keyphrase with the completion applied. Differs from 'text' for multi-word keyphrases.
+   */
+  queryPlusText: string;
+}
+
+/**
+ * Response from the Suggest API of the Search Service.
+ * Both collections are always present. A collection is empty when the corresponding
+ * suggestion mode is disabled in the index configuration or when there are no matches.
+ * @public
+ */
+export interface SuggestResponse<T extends SearchDocument = SearchDocument> {
+  /**
+   * Autocomplete suggestions for the keyphrase.
+   */
+  querySuggestions: QuerySuggestion[];
+  /**
+   * Documents matching the keyphrase, to preview results while the visitor is typing.
+   */
+  previewResults: T[];
+}
+
+/**
  * Fetch options for the Search Service.
  * @public
  */
@@ -166,14 +219,6 @@ export class SearchService {
 
     const sortFields = sort ? (Array.isArray(sort) ? sort : [sort]) : [];
 
-    const options = {
-      ...fetchOptions,
-      headers: {
-        ...fetchOptions?.headers,
-        'x-sitecore-contextid': this.config.contextId,
-      },
-    };
-
     const { data } = await this.fetcher.post<SearchAPIResponse<T>>(
       url.toString(),
       {
@@ -192,7 +237,7 @@ export class SearchService {
         ...(locale !== undefined && { locale }),
         ...(facet !== undefined && { facet }),
       },
-      options
+      this.getRequestOptions(fetchOptions)
     );
 
     return {
@@ -200,6 +245,69 @@ export class SearchService {
       total: data.total || 0,
       facets: data.facet,
     };
+  }
+
+  /**
+   * Get typeahead suggestions for a partial keyphrase.
+   * The suggestion modes to run are defined in the index configuration, so a mode that is
+   * disabled there returns an empty collection.
+   * @param {SuggestParameters} params - The suggest parameters.
+   * @param {SearchServiceFetchOptions} [fetchOptions] - The fetch options.
+   * @returns {Promise<SuggestResponse<T>>} The suggest response.
+   * @throws {NativeDataFetcherError} if the request fails.
+   * @throws {TypeError} If search index ID is not provided.
+   * @throws {TypeError} If keyphrase is not provided or is empty.
+   */
+  async suggest<T extends SearchDocument = SearchDocument>(
+    params: SuggestParameters,
+    fetchOptions?: SearchServiceFetchOptions
+  ): Promise<SuggestResponse<T>> {
+    const { searchIndexId, keyphrase, locale } = params;
+
+    this.validateSuggestParameters(params);
+
+    const url = new URL('/v1/search/suggest', this.config.edgeUrl);
+
+    const { data } = await this.fetcher.post<SuggestResponse<T>>(
+      url.toString(),
+      {
+        config: {
+          id: searchIndexId,
+        },
+        query: {
+          keyphrase,
+        },
+        ...(locale !== undefined && { locale }),
+      },
+      this.getRequestOptions(fetchOptions)
+    );
+
+    return {
+      querySuggestions: data.querySuggestions || [],
+      previewResults: data.previewResults || [],
+    };
+  }
+
+  private getRequestOptions(fetchOptions?: SearchServiceFetchOptions) {
+    return {
+      ...fetchOptions,
+      headers: {
+        ...fetchOptions?.headers,
+        'x-sitecore-contextid': this.config.contextId,
+      },
+    };
+  }
+
+  private validateSuggestParameters(params: SuggestParameters) {
+    const { searchIndexId, keyphrase } = params;
+
+    if (!searchIndexId) {
+      throw new TypeError('Search index ID is required');
+    }
+
+    if (!keyphrase || !keyphrase.trim()) {
+      throw new TypeError('Keyphrase is required');
+    }
   }
 
   private validateParameters<T extends SearchDocument = SearchDocument>(

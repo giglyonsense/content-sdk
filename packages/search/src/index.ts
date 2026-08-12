@@ -5,6 +5,9 @@ export {
   SearchResponse,
   SortSetting,
   SearchServiceFetchOptions,
+  SuggestParameters,
+  SuggestResponse,
+  QuerySuggestion,
 } from './search-service';
 export {
   SearchDocument,
